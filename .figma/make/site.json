@@ -1,0 +1,10 @@
+{
+  "description": "A student event ticketing platform to discover campus events, claim tickets fairly, track availability, and join waitlists for sold-out events.",
+  "robots": {
+    "index": false
+  },
+  "accessibility": {
+    "addBypassLinks": false,
+    "ignoreReducedMotion": false
+  }
+}
