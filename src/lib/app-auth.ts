@@ -96,18 +96,21 @@ export function createAppAuth(appUserCollection: 'users') {
       )
 
       const cookieStore = await cookies()
+      const isHttps =
+        process.env.NODE_ENV === 'production' &&
+        !(process.env.NEXT_PUBLIC_SITE_URL || '').startsWith('http://localhost')
       cookieStore.set(SESSION_COOKIE, token, {
         httpOnly: true,
         maxAge,
         path: '/',
         sameSite: 'lax',
-        secure: process.env.NODE_ENV === 'production',
+        secure: isHttps,
       })
 
       return token
     },
 
-    async handleGoogleUser(profile: GoogleUserProfile): Promise<User> {
+    async authenticateGoogleUser(profile: GoogleUserProfile): Promise<{ token: string; user: User }> {
       const payload = await getPayloadClient()
       const normalizedEmail = profile.email.trim().toLowerCase()
 
@@ -130,8 +133,8 @@ export function createAppAuth(appUserCollection: 'users') {
             name: existing.name || profile.name,
           },
         })
-        await this.issueUserSession(updated)
-        return updated as User
+        const token = await this.issueUserSession(updated)
+        return { token, user: updated as User }
       }
 
       // 2. Check if user exists by email (Account Linking)
@@ -159,8 +162,8 @@ export function createAppAuth(appUserCollection: 'users') {
             authProvider: 'both',
           },
         })
-        await this.issueUserSession(updated)
-        return updated as User
+        const token = await this.issueUserSession(updated)
+        return { token, user: updated as User }
       }
 
       // 3. Register new student via Google
@@ -178,8 +181,13 @@ export function createAppAuth(appUserCollection: 'users') {
         },
       })
 
-      await this.issueUserSession(newUser)
-      return newUser as User
+      const token = await this.issueUserSession(newUser)
+      return { token, user: newUser as User }
+    },
+
+    async handleGoogleUser(profile: GoogleUserProfile): Promise<User> {
+      const { user } = await this.authenticateGoogleUser(profile)
+      return user
     },
 
     async login(email: string, password: string): Promise<User> {
@@ -197,12 +205,15 @@ export function createAppAuth(appUserCollection: 'users') {
       const now = Math.floor(Date.now() / 1000)
       const maxAge = result.exp ? Math.max(0, result.exp - now) : 60 * 60 * 2
       const cookieStore = await cookies()
+      const isHttps =
+        process.env.NODE_ENV === 'production' &&
+        !(process.env.NEXT_PUBLIC_SITE_URL || '').startsWith('http://localhost')
       cookieStore.set(SESSION_COOKIE, result.token, {
         httpOnly: true,
         maxAge,
         path: '/',
         sameSite: 'lax',
-        secure: process.env.NODE_ENV === 'production',
+        secure: isHttps,
       })
 
       return result.user as User

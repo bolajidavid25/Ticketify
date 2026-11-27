@@ -1,11 +1,12 @@
 import { NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
-import { studentAuth } from '@/lib/app-auth'
+import { SESSION_COOKIE, studentAuth } from '@/lib/app-auth'
 import {
   getPublicOrigin,
   OAUTH_STATE_COOKIE,
   parseOAuthStateCookie,
   verifyGoogleTokenPayload,
+  verifySignedOAuthState,
 } from '@/lib/google-oauth'
 
 export async function GET(request: Request) {
@@ -17,33 +18,47 @@ export async function GET(request: Request) {
 
   const cookieStore = await cookies()
   const stateCookie = cookieStore.get(OAUTH_STATE_COOKIE)?.value
-  const parsedState = parseOAuthStateCookie(stateCookie)
-
-  // Clear OAuth state cookie
-  cookieStore.delete(OAUTH_STATE_COOKIE)
+  const parsedCookieState = parseOAuthStateCookie(stateCookie)
+  const signedState = state ? verifySignedOAuthState(state) : null
 
   // Handle user cancelled auth
   if (errorParam === 'access_denied') {
-    return NextResponse.redirect(new URL('/login?error=cancelled', origin))
+    const res = NextResponse.redirect(new URL('/login?error=cancelled', origin), 302)
+    res.cookies.delete(OAUTH_STATE_COOKIE)
+    return res
   }
 
   if (errorParam) {
-    return NextResponse.redirect(
+    const res = NextResponse.redirect(
       new URL(`/login?error=${encodeURIComponent(`Google authentication failed: ${errorParam}`)}`, origin),
+      302,
     )
+    res.cookies.delete(OAUTH_STATE_COOKIE)
+    return res
   }
 
-  // Validate state
-  if (!state || !parsedState || state !== parsedState.state) {
-    return NextResponse.redirect(
+  // Validate state: prefer strict cookie match when present, or HMAC-signed state fallback for Safari/iOS ITP
+  const validState =
+    state && parsedCookieState && state === parsedCookieState.state
+      ? parsedCookieState
+      : signedState
+
+  if (!validState) {
+    const res = NextResponse.redirect(
       new URL('/login?error=Invalid+or+expired+OAuth+session.+Please+try+again.', origin),
+      302,
     )
+    res.cookies.delete(OAUTH_STATE_COOKIE)
+    return res
   }
 
   if (!code) {
-    return NextResponse.redirect(
+    const res = NextResponse.redirect(
       new URL('/login?error=Authorization+code+missing+from+Google+callback.', origin),
+      302,
     )
+    res.cookies.delete(OAUTH_STATE_COOKIE)
+    return res
   }
 
   const clientId = process.env.GOOGLE_CLIENT_ID
@@ -96,11 +111,11 @@ export async function GET(request: Request) {
 
     const verified = verifyGoogleTokenPayload(tokenPayload, {
       clientId,
-      expectedNonce: parsedState.nonce,
+      expectedNonce: validState.nonce,
     })
 
-    // Establish student session in Payload / PostgreSQL
-    await studentAuth.handleGoogleUser({
+    // Establish student session in Payload / PostgreSQL and attach cookie directly to the 302 redirect for Safari/iOS
+    const { token } = await studentAuth.authenticateGoogleUser({
       googleId: verified.googleId,
       email: verified.email,
       emailVerified: verified.emailVerified,
@@ -108,12 +123,24 @@ export async function GET(request: Request) {
       avatar: verified.avatar,
     })
 
-    const destination = parsedState.next || '/discover'
-    return NextResponse.redirect(new URL(destination, origin))
+    const destination = validState.next || '/discover'
+    const response = NextResponse.redirect(new URL(destination, origin), 302)
+    response.cookies.delete(OAUTH_STATE_COOKIE)
+    response.cookies.set(SESSION_COOKIE, token, {
+      httpOnly: true,
+      maxAge: 60 * 60 * 24 * 7,
+      path: '/',
+      sameSite: 'lax',
+      secure: origin.startsWith('https://'),
+    })
+    return response
   } catch (err: any) {
     console.error('Google callback error:', err)
-    return NextResponse.redirect(
+    const res = NextResponse.redirect(
       new URL(`/login?error=${encodeURIComponent(err.message || 'Authentication error')}`, origin),
+      302,
     )
+    res.cookies.delete(OAUTH_STATE_COOKIE)
+    return res
   }
 }

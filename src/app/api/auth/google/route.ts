@@ -1,5 +1,4 @@
 import { NextResponse } from 'next/server'
-import { cookies } from 'next/headers'
 import {
   generateOAuthState,
   getGoogleOAuthUrl,
@@ -12,16 +11,6 @@ export async function GET(request: Request) {
   const nextPath = url.searchParams.get('next') || '/discover'
 
   const { state, nonce, cookieValue } = generateOAuthState(nextPath)
-
-  const cookieStore = await cookies()
-  cookieStore.set(OAUTH_STATE_COOKIE, cookieValue, {
-    httpOnly: true,
-    maxAge: 60 * 10, // 10 minutes
-    path: '/',
-    sameSite: 'lax',
-    secure: process.env.NODE_ENV === 'production',
-  })
-
   const origin = getPublicOrigin(request)
   const clientId = process.env.GOOGLE_CLIENT_ID
   if (!clientId) {
@@ -33,6 +22,7 @@ export async function GET(request: Request) {
         )}`,
         origin,
       ),
+      302,
     )
   }
 
@@ -44,5 +34,13 @@ export async function GET(request: Request) {
     state,
   })
 
-  return NextResponse.redirect(googleAuthUrl)
+  const response = NextResponse.redirect(googleAuthUrl, 302)
+  response.cookies.set(OAUTH_STATE_COOKIE, cookieValue, {
+    httpOnly: true,
+    maxAge: 60 * 10, // 10 minutes
+    path: '/',
+    sameSite: 'lax',
+    secure: origin.startsWith('https://'),
+  })
+  return response
 }

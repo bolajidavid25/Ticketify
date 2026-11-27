@@ -32,12 +32,61 @@ export function generateOAuthState(nextPath?: string): {
   nonce: string
   state: string
 } {
-  const state = crypto.randomBytes(32).toString('hex')
   const nonce = crypto.randomBytes(16).toString('hex')
   const next = nextPath && nextPath.startsWith('/') && !nextPath.startsWith('//') ? nextPath : '/discover'
+  const secret = process.env.PAYLOAD_SECRET || ''
+
+  let state: string
+  if (secret) {
+    const payload = Buffer.from(
+      JSON.stringify({
+        exp: Math.floor(Date.now() / 1000) + 600,
+        n: nonce,
+        nx: next,
+        r: crypto.randomBytes(12).toString('hex'),
+      }),
+    ).toString('base64url')
+    const sig = crypto.createHmac('sha256', secret).update(payload).digest('base64url')
+    state = `${payload}.${sig}`
+  } else {
+    state = crypto.randomBytes(32).toString('hex')
+  }
 
   const cookieValue = JSON.stringify({ state, nonce, next })
   return { state, nonce, cookieValue }
+}
+
+export function verifySignedOAuthState(state: string): OAuthStatePayload | null {
+  const secret = process.env.PAYLOAD_SECRET || ''
+  if (!secret || !state.includes('.')) return null
+
+  const [payload, sig] = state.split('.')
+  if (!payload || !sig) return null
+
+  const expectedSig = crypto.createHmac('sha256', secret).update(payload).digest('base64url')
+  const sigBuf = Buffer.from(sig)
+  const expectedBuf = Buffer.from(expectedSig)
+  if (sigBuf.length !== expectedBuf.length || !crypto.timingSafeEqual(sigBuf, expectedBuf)) {
+    return null
+  }
+
+  try {
+    const decoded = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8'))
+    if (
+      typeof decoded?.exp !== 'number' ||
+      decoded.exp < Math.floor(Date.now() / 1000) ||
+      typeof decoded?.n !== 'string'
+    ) {
+      return null
+    }
+    const next =
+      typeof decoded.nx === 'string' && decoded.nx.startsWith('/') && !decoded.nx.startsWith('//')
+        ? decoded.nx
+        : '/discover'
+    return { next, nonce: decoded.n, state }
+  } catch {
+    return null
+  }
 }
 
 export function parseOAuthStateCookie(cookieHeader?: string | null): OAuthStatePayload | null {
