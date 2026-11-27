@@ -1,6 +1,7 @@
 'use server'
 
 import { getPayloadClient } from '@/lib/payload'
+import { sendComplaintNotificationEmail } from '@/lib/resend'
 
 export type ComplaintFormState = {
   success: boolean
@@ -51,7 +52,7 @@ export async function submitComplaint(
 
   try {
     const payload = await getPayloadClient()
-    await payload.create({
+    const created = await payload.create({
       collection: 'complaints',
       draft: false,
       overrideAccess: false,
@@ -62,6 +63,15 @@ export async function submitComplaint(
         subject,
         message,
       },
+    })
+
+    await sendComplaintNotificationEmail({
+      id: created.id,
+      name,
+      email,
+      category,
+      subject,
+      message,
     })
 
     return {

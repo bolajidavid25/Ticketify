@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { getPayloadClient } from '@/lib/payload'
+import { sendComplaintNotificationEmail } from '@/lib/resend'
 
 const ALLOWED_CATEGORIES = new Set([
   'ticket-claim',
@@ -59,6 +60,15 @@ export async function POST(request: Request) {
         message: message.trim(),
         status: 'new',
       },
+    })
+
+    await sendComplaintNotificationEmail({
+      id: complaint.id,
+      name: name.trim(),
+      email: email.trim().toLowerCase(),
+      category,
+      subject: subject.trim(),
+      message: message.trim(),
     })
 
     return NextResponse.json({
