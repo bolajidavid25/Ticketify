@@ -85,12 +85,15 @@ export async function bookTicketAction(
   }
 
   const code = generateTicketCode()
+  const transactionID = await payload.db.beginTransaction()
+  const txReq = transactionID ? ({ transactionID } as any) : undefined
 
   try {
     // 1. Create the active ticket
     await payload.create({
       collection: 'tickets',
       overrideAccess: true,
+      req: txReq,
       data: {
         code,
         event: event.id,
@@ -104,6 +107,7 @@ export async function bookTicketAction(
       collection: 'events',
       id: event.id,
       overrideAccess: true,
+      req: txReq,
       data: {
         issuedCount: issuedCount + 1,
       },
@@ -114,6 +118,7 @@ export async function bookTicketAction(
       collection: 'waitlist',
       limit: 1,
       overrideAccess: true,
+      req: txReq,
       where: {
         and: [
           { student: { equals: user.id } },
@@ -128,6 +133,7 @@ export async function bookTicketAction(
         collection: 'waitlist',
         id: waitingEntry.docs[0].id,
         overrideAccess: true,
+        req: txReq,
         data: {
           allocatedAt: new Date().toISOString(),
           status: 'allocated',
@@ -135,10 +141,11 @@ export async function bookTicketAction(
       })
     }
 
-    // 4. Reliable notification: only created after successful booking persistence
+    // 4. Reliable notification: only created after ticketing mutations succeed
     await payload.create({
       collection: 'notifications',
       overrideAccess: true,
+      req: txReq,
       data: {
         recipient: user.id,
         title: 'Ticket Confirmed',
@@ -148,12 +155,19 @@ export async function bookTicketAction(
       },
     })
 
+    if (transactionID) {
+      await payload.db.commitTransaction(transactionID)
+    }
+
     return {
       ok: true,
       ticketCode: code,
       message: `Ticket confirmed! Your code is ${code}.`,
     }
   } catch (err: any) {
+    if (transactionID) {
+      await payload.db.rollbackTransaction(transactionID)
+    }
     return {
       ok: false,
       message: err.message || 'Unable to complete your ticket booking. Please try again.',
@@ -290,36 +304,28 @@ export async function cancelTicketAction(
     return { ok: false, message: 'Associated event could not be found.' }
   }
 
+  const transactionID = await payload.db.beginTransaction()
+  const txReq = transactionID ? ({ transactionID } as any) : undefined
+
   try {
     // 1. Mark current ticket cancelled
     await payload.update({
       collection: 'tickets',
       id: ticket.id,
       overrideAccess: true,
+      req: txReq,
       data: {
         cancelledAt: new Date().toISOString(),
         status: 'cancelled',
       },
     })
 
-    // 2. Notification to the student cancelling their ticket
-    await payload.create({
-      collection: 'notifications',
-      overrideAccess: true,
-      data: {
-        recipient: user.id,
-        title: 'Ticket Cancelled',
-        message: `Your ticket for "${event.title}" (${ticket.code}) was cancelled.`,
-        type: 'ticket_cancelled',
-        isRead: false,
-      },
-    })
-
-    // 3. FIFO waitlist auto-allocation
+    // 2. FIFO waitlist auto-allocation
     const nextInLine = await payload.find({
       collection: 'waitlist',
       limit: 1,
       overrideAccess: true,
+      req: txReq,
       sort: 'joinedAt',
       where: {
         and: [
@@ -330,12 +336,15 @@ export async function cancelTicketAction(
     })
 
     const waiter = nextInLine.docs[0]
+    let allocatedWaiter: { waiterId: number; newCode: string } | null = null
+
     if (waiter) {
       const waiterId = typeof waiter.student === 'object' ? waiter.student.id : waiter.student
       const existingForWaiter = await payload.find({
         collection: 'tickets',
         limit: 1,
         overrideAccess: true,
+        req: txReq,
         where: {
           and: [
             { student: { equals: waiterId } },
@@ -350,6 +359,7 @@ export async function cancelTicketAction(
         await payload.create({
           collection: 'tickets',
           overrideAccess: true,
+          req: txReq,
           data: {
             code: newCode,
             event: event.id,
@@ -362,47 +372,73 @@ export async function cancelTicketAction(
           collection: 'waitlist',
           id: waiter.id,
           overrideAccess: true,
+          req: txReq,
           data: {
             allocatedAt: new Date().toISOString(),
             status: 'allocated',
           },
         })
 
-        // 4. Notification to the allocated waitlist student
-        await payload.create({
-          collection: 'notifications',
-          overrideAccess: true,
-          data: {
-            recipient: waiterId,
-            title: 'Waitlist Seat Allocated!',
-            message: `A seat opened up for "${event.title}" and has been allocated to you! Your ticket code is ${newCode}.`,
-            type: 'waitlist_allocated',
-            isRead: false,
-          },
-        })
-
-        return {
-          ok: true,
-          message: 'Ticket cancelled. Your seat was automatically assigned to the next student on the waitlist.',
-        }
+        allocatedWaiter = { waiterId, newCode }
       }
     }
 
     // If waitlist was empty or next waiter already had a ticket, return seat to event capacity
-    await payload.update({
-      collection: 'events',
-      id: event.id,
+    if (!allocatedWaiter) {
+      await payload.update({
+        collection: 'events',
+        id: event.id,
+        overrideAccess: true,
+        req: txReq,
+        data: {
+          issuedCount: Math.max(0, (event.issuedCount ?? 1) - 1),
+        },
+      })
+    }
+
+    // 3. Notifications: created only after all ticketing & waitlist mutations succeed
+    await payload.create({
+      collection: 'notifications',
       overrideAccess: true,
+      req: txReq,
       data: {
-        issuedCount: Math.max(0, (event.issuedCount ?? 1) - 1),
+        recipient: user.id,
+        title: 'Ticket Cancelled',
+        message: `Your ticket for "${event.title}" (${ticket.code}) was cancelled.`,
+        type: 'ticket_cancelled',
+        isRead: false,
       },
     })
 
+    if (allocatedWaiter) {
+      await payload.create({
+        collection: 'notifications',
+        overrideAccess: true,
+        req: txReq,
+        data: {
+          recipient: allocatedWaiter.waiterId,
+          title: 'Waitlist Seat Allocated!',
+          message: `A seat opened up for "${event.title}" and has been allocated to you! Your ticket code is ${allocatedWaiter.newCode}.`,
+          type: 'waitlist_allocated',
+          isRead: false,
+        },
+      })
+    }
+
+    if (transactionID) {
+      await payload.db.commitTransaction(transactionID)
+    }
+
     return {
       ok: true,
-      message: 'Ticket cancelled and seat returned to available capacity.',
+      message: allocatedWaiter
+        ? 'Ticket cancelled. Your seat was automatically assigned to the next student on the waitlist.'
+        : 'Ticket cancelled and seat returned to available capacity.',
     }
   } catch (err: any) {
+    if (transactionID) {
+      await payload.db.rollbackTransaction(transactionID)
+    }
     return {
       ok: false,
       message: err.message || 'Error occurred during cancellation.',

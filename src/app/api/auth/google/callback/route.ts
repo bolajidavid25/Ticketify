@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 import { studentAuth } from '@/lib/app-auth'
 import {
+  getPublicOrigin,
   OAUTH_STATE_COOKIE,
   parseOAuthStateCookie,
   verifyGoogleTokenPayload,
@@ -9,7 +10,7 @@ import {
 
 export async function GET(request: Request) {
   const url = new URL(request.url)
-  const origin = url.origin
+  const origin = getPublicOrigin(request)
   const errorParam = url.searchParams.get('error')
   const code = url.searchParams.get('code')
   const state = url.searchParams.get('state')

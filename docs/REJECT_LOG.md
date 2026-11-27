@@ -95,4 +95,14 @@ This document tracks all proposed architectural, backend, and technical implemen
 * **Reason:** Standard REST clients, mobile apps, external integrations, and programmatic test scripts require standard `Authorization: JWT <token>` or `Authorization: Bearer <token>` header support.
 * **Alternative Approach Selected:** Dual authentication resolution in `src/lib/api-auth.ts`: Resolves authentication from either `Authorization: JWT/Bearer <token>` headers or HTTP-only `app-session` cookies, providing full flexibility for both web browser sessions and API consumers.
 
+---
+
+### Record 011: Non-Transactional Multi-Step Ticketing & Notification Writes
+* **Date:** 2026-11-27
+* **Proposed Implementation:** Execute ticket creation/cancellation, event `issuedCount` updates, waitlist allocation, and notification creation as independent auto-committed Payload Local API calls in `src/app/(frontend)/ticket-actions.ts`.
+* **Decision:** **REJECTED**
+* **Reason:** If a downstream mutation (such as `events.issuedCount` update, `waitlist` status transition, or FIFO ticket creation) fails, earlier writes—including `ticket_cancelled` notifications—would remain committed in PostgreSQL, leaving capacity counts, tickets, and notifications out of sync.
+* **Potential Consequences:** Orphaned notifications for failed cancellations, inconsistent `issuedCount` values, or partial waitlist allocations.
+* **Alternative Approach Selected:** Wrap `bookTicketAction` and `cancelTicketAction` mutations in `payload.db.beginTransaction()` / `commitTransaction()` / `rollbackTransaction()` passing `req: { transactionID }` to all Payload operations, and defer notification creation until after all ticketing, capacity, and waitlist mutations succeed.
+
 

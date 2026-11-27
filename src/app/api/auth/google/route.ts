@@ -3,6 +3,7 @@ import { cookies } from 'next/headers'
 import {
   generateOAuthState,
   getGoogleOAuthUrl,
+  getPublicOrigin,
   OAUTH_STATE_COOKIE,
 } from '@/lib/google-oauth'
 
@@ -21,10 +22,10 @@ export async function GET(request: Request) {
     secure: process.env.NODE_ENV === 'production',
   })
 
+  const origin = getPublicOrigin(request)
   const clientId = process.env.GOOGLE_CLIENT_ID
   if (!clientId) {
     // In dev without credentials configured, return a clear error redirect
-    const origin = url.origin
     return NextResponse.redirect(
       new URL(
         `/login?error=${encodeURIComponent(
@@ -35,7 +36,7 @@ export async function GET(request: Request) {
     )
   }
 
-  const redirectUri = `${url.origin}/api/auth/google/callback`
+  const redirectUri = `${origin}/api/auth/google/callback`
   const googleAuthUrl = getGoogleOAuthUrl({
     clientId,
     redirectUri,

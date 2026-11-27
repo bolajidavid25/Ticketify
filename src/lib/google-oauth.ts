@@ -3,6 +3,24 @@ import { cookies } from 'next/headers'
 
 export const OAUTH_STATE_COOKIE = 'g_oauth_state'
 
+/**
+ * Resolves the public-facing origin for OAuth redirect URIs and callbacks,
+ * supporting reverse proxies (e.g. Render) via x-forwarded-* headers and NEXT_PUBLIC_SITE_URL.
+ */
+export function getPublicOrigin(request: Request): string {
+  const forwardedHost = request.headers.get('x-forwarded-host')?.split(',')[0]?.trim()
+  const forwardedProto = request.headers.get('x-forwarded-proto')?.split(',')[0]?.trim() || 'https'
+  if (forwardedHost) {
+    return `${forwardedProto}://${forwardedHost}`
+  }
+
+  if (process.env.NEXT_PUBLIC_SITE_URL) {
+    return process.env.NEXT_PUBLIC_SITE_URL.replace(/\/+$/, '')
+  }
+
+  return new URL(request.url).origin
+}
+
 export type OAuthStatePayload = {
   next: string
   nonce: string
