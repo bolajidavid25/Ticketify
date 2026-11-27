@@ -24,10 +24,7 @@ export function ContactSection() {
             <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(4,28,18,.08),rgba(4,28,18,.88))]" />
 
             <div className="absolute inset-x-0 bottom-0 p-8 text-white sm:p-12">
-              <span className="inline-flex rounded-full border border-white/20 bg-white/10 px-4 py-2 text-xs font-extrabold uppercase tracking-[0.16em] backdrop-blur">
-                We&apos;re listening
-              </span>
-              <h2 className="mt-6 max-w-md text-4xl font-black leading-[0.95] tracking-[-0.05em] sm:text-6xl">
+              <h2 className="max-w-md text-4xl font-black leading-[0.95] tracking-[-0.05em] sm:text-6xl">
                 Something not right?
               </h2>
               <p className="mt-5 max-w-md text-base leading-7 text-white/68">

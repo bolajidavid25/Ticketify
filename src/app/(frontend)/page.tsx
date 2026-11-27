@@ -212,9 +212,14 @@ export default async function HomePage() {
             <p className="mt-6 max-w-xl text-base leading-7 text-[#345441]">
               Join the waitlist in one tap. If someone cancels, the earliest eligible student is allocated the seat automatically.
             </p>
-            <a className="mt-9 inline-flex rounded-full bg-[#0b2a1d] px-7 py-4 text-sm font-extrabold text-white transition hover:-translate-y-0.5 hover:bg-[#164f35]" href="#events">
-              Find an event
-            </a>
+            <div className="mt-9 flex flex-wrap items-center gap-4">
+              <Link className="inline-flex rounded-full bg-[#0b2a1d] px-7 py-4 text-sm font-extrabold text-white transition hover:-translate-y-0.5 hover:bg-[#164f35]" href="/waitlist">
+                Open waitlist
+              </Link>
+              <a className="inline-flex rounded-full border border-[#0b2a1d]/25 px-7 py-4 text-sm font-extrabold text-[#0b2a1d] transition hover:bg-[#0b2a1d]/5" href="#events">
+                Find an event
+              </a>
+            </div>
           </div>
         </div>
       </section>

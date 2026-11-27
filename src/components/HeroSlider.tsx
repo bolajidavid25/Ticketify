@@ -55,7 +55,7 @@ export function HeroSlider() {
           <nav aria-label="Primary navigation" className="hidden items-center gap-8 text-sm font-medium text-white/75 md:flex">
             <Link className="transition hover:text-white" href="/discover">Explore events</Link>
             <a className="transition hover:text-white" href="#how-it-works">How it works</a>
-            <a className="transition hover:text-white" href="#waitlist">Waitlist</a>
+            <Link className="transition hover:text-white" href="/waitlist">Waitlist</Link>
             <a className="transition hover:text-white" href="#contact">Contact</a>
           </nav>
           <div className="flex items-center gap-3">
@@ -70,10 +70,6 @@ export function HeroSlider() {
 
         <div className="flex flex-1 items-center py-20 lg:py-24">
           <div className="max-w-3xl">
-            <div className="mb-7 inline-flex items-center gap-2 rounded-full border border-[#c8ff66]/35 bg-[#c8ff66]/10 px-4 py-2 text-xs font-bold uppercase tracking-[0.18em] text-[#dfff9d] backdrop-blur">
-              <span className="size-1.5 animate-pulse rounded-full bg-[#c8ff66]" />
-              Fair access. Real-time availability.
-            </div>
             <h1 className="max-w-3xl text-[clamp(3.5rem,8vw,7.5rem)] font-black leading-[0.88] tracking-[-0.065em]">
               Don&apos;t miss
               <span className="block text-[#c8ff66]">the moment.</span>

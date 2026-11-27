@@ -57,10 +57,7 @@ function StudentAuthScreenInner({ action, mode, nextPath }: StudentAuthScreenPro
           </div>
 
           <div className="absolute inset-x-0 bottom-0 p-8 text-white sm:p-12 lg:p-16">
-            <span className="inline-flex border border-white/25 bg-white/10 px-4 py-2 text-xs font-extrabold uppercase tracking-[0.16em] backdrop-blur">
-              {signup ? 'Your campus, your access' : 'Welcome back'}
-            </span>
-            <h1 className="mt-6 max-w-xl text-5xl font-black leading-[0.9] tracking-[-0.055em] sm:text-7xl">
+            <h1 className="max-w-xl text-5xl font-black leading-[0.9] tracking-[-0.055em] sm:text-7xl">
               {signup ? 'Get closer to every campus moment.' : 'Your next event is waiting.'}
             </h1>
             <p className="mt-6 max-w-md text-base leading-7 text-white/68">
