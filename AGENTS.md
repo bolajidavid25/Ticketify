@@ -1,3 +1,160 @@
+Ticketify — AI Engineering and Capstone Rules
+How to use this file: Ticketify already has a root AGENTS.md containing project- and Figma Make-specific instructions. This document is a capstone-focused addendum. Merge these rules into the existing AGENTS.md; do not replace the existing file with this addendum, because doing so would discard important platform, Payload, and deployment instructions.
+
+1. Project context
+Ticketify is a student-focused event discovery and ticketing platform. The student-facing event experience includes event discovery, student accounts, ticket booking, waitlists, cancellation, and recipient-specific notifications. The UI uses the name Ticket Drop in parts of the event experience.
+
+The current application uses:
+- Next.js App Router and React;
+- TypeScript and Tailwind CSS;
+- Payload CMS as the application data and access-control layer;
+- PostgreSQL through the Payload database adapter;
+- pnpm for package management.
+Important domain collections include events, users, admins, tickets, waitlist, and notifications. Read the relevant collection definitions, server actions, API routes, and generated types before changing behaviour. Do not infer a schema from the UI alone.
+2. Agent operating workflow
+Use this sequence for every non-trivial task:
+1. Understand: Read the relevant source files, collection definitions, existing tests, project instructions, and any linked specification. Do not start implementing from a vague prompt.
+2. Clarify the goal in the brief: Identify the user problem, in-scope behaviour, out-of-scope behaviour, constraints, and acceptance criteria.
+3. Plan: Break the work into small, reviewable steps. Identify affected routes, collections, server actions, access rules, and tests.
+4. Act: Implement only what is required. Reuse existing services, helpers, and conventions.
+5. Observe: Run the most relevant tests, type checks, build, route previews, or manual verification available in the current environment.
+6. Repeat: Fix failures, inspect the diff, and rerun the relevant checks.
+7. Report: Summarise the change, verification evidence, risks, unresolved issues, and material AI involvement.
+Do not mark work complete merely because code was generated, a command was started, or a happy-path screen appeared.
+3. Important rules and rationale
+Rule 1 — PostgreSQL/Payload is the source of truth
+Do not introduce production fallbacks to hardcoded event or ticket arrays. Durable business records must come from the configured Payload/PostgreSQL data layer.
+
+Rationale: A second source of truth can disagree with the database, create records that cannot be booked, and make administrator changes invisible to the student application.
+Rule 2 — Use Payload Local API for domain mutations
+Use the existing Payload Local API and collection hooks for creating, reading, and updating durable domain records. Do not introduce independent raw SQL or Drizzle business logic for booking, cancellation, capacity, or waitlist operations unless the project owner explicitly approves a deliberate architectural change.
+
+Rationale: Collection hooks, validations, access control, generated types, and shared business rules must run consistently. Duplicating them in separate data paths creates drift and can bypass invariants.
+Rule 3 — Keep student and administrator identities separate
+Do not merge the users and admins collections or give student accounts Payload Admin permissions. Student application authentication and CMS administration are different authorization boundaries.
+
+Rationale: Combining these identities can create privilege escalation and expose administrative functions to ordinary students.
+Rule 4 — Enforce business invariants on the server
+Never trust the browser to decide ticket ownership, event capacity, Student ID eligibility, ticket status, or waitlist position. Validate and allowlist mutation inputs on the server, and preserve collection-level protections.
+
+Current domain rules include:
+- A student must have a Student ID before booking or joining a waitlist.
+- A student may hold no more than one active ticket for the same event.
+- Students may only access their own private ticket, waitlist, and notification records.
+- Only published events are eligible for student booking or waitlist actions.
+- Capacity and ticket allocation are decided by server-side state.
+Rationale: Client-side checks can be bypassed. Durable invariants must remain true for browser clients, REST clients, and future integrations.
+Rule 5 — Make multi-step ticketing operations consistent
+Booking and cancellation may involve multiple related writes: ticket status, event issuedCount, waitlist status, and notifications. Use the transaction pattern established in the existing code and pass the transaction request to every operation that belongs to it. Roll back on failure.
+
+Rationale: A partial write can leave a seat count, ticket, waitlist entry, and notification out of sync.
+
+Do not assume a transaction is active merely because beginTransaction() was called. Confirm that the database adapter returned a transaction identifier and that the participating operations use it.
+Rule 6 — Preserve deterministic FIFO waitlist allocation
+The server determines the next eligible waiter using the persisted joinedAt ordering. Do not accept a client-supplied recipient or position as the authority for allocation.
+
+Rationale: Server-side FIFO selection protects fairness and prevents a student from selecting another person or manipulating their place in the queue.
+
+If the earliest waiter is no longer eligible, define and test the intended skip/continuation behaviour instead of silently leaving an event in an inconsistent state.
+Rule 7 — Create notifications only after the related operation is valid
+A notification must not announce a booking, cancellation, or waitlist allocation that did not succeed. For transactional workflows, notification records should be written within the same transaction where appropriate, after the primary ticketing and waitlist changes have succeeded.
+
+Rationale: Premature notifications can mislead users and create false records when the primary operation later fails.
+Rule 8 — Protect authentication and OAuth account linking
+Keep session signing secrets and provider credentials server-side. Do not store OAuth access or refresh tokens unless a separately approved requirement needs them. Verify Google's email_verified claim before linking a Google identity to an existing student account. Never trust an email address supplied by the browser as proof of identity.
+
+Rationale: Weak account linking can enable account takeover; unnecessary tokens increase the impact of credential exposure.
+Rule 9 — Apply least-privilege access rules
+For every collection or endpoint, identify who can create, read, update, and delete records. Students should only access their own private records. Public visitors should not gain access to private submissions or operational records. For user-facing Local API calls, follow the existing project instructions for overrideAccess and authenticated-user context.
+
+Rationale: Hiding a button in the UI is not access control. Authorization must be enforced at the server/data boundary.
+Rule 10 — Keep secrets out of source code and AI context
+Never request or print real passwords, database URLs, signing secrets, OAuth client secrets, or API keys in prompts, logs, documentation, screenshots, or commits. Refer to environment-variable names only. Do not introduce fake values to bypass platform configuration errors.
+
+Rationale: Secrets placed in source history, logs, or browser bundles can be copied and abused even after the visible value is removed.
+Rule 11 — Keep changes small and reviewable
+Prefer one coherent feature or fix per branch/PR. Avoid broad refactors, speculative abstractions, unnecessary dependencies, and unrelated formatting changes. Check the installed package versions and local documentation before using APIs that may differ from prior versions.
+
+Rationale: Small diffs make it easier for a human reviewer to understand intent, identify regressions, and verify the result.
+Rule 12 — Test behaviour, including failure and boundary cases
+Tests should assert observable behaviour, not implementation details alone. For ticketing changes, consider:
+- unauthenticated requests;
+- authenticated users without a Student ID;
+- missing, invalid, or unpublished event IDs;
+- duplicate active ticket attempts;
+- exactly-at-capacity and sold-out events;
+- repeated waitlist joins;
+- cancellation by a non-owner;
+- FIFO ordering and an ineligible next waiter;
+- notification creation only after successful mutations;
+- a failure partway through a multi-step operation;
+- attempts to read or mutate another student's records.
+Choose test cases that match the change; do not mechanically add irrelevant cases.
+
+Rationale: Happy-path-only tests do not demonstrate that security rules, business constraints, and failure handling work.
+Rule 13 — Preserve platform-owned project structure
+Follow the existing AGENTS.md instructions for Figma Make, Payload, route groups, generated files, deployment scripts, and platform-managed environment variables. Do not directly edit Payload-managed routes or replace the configured Payload/Figma infrastructure.
+
+Rationale: These files and services are coupled to the generated runtime. Replacing them with generic Next.js/Payload patterns can break preview, authentication, deployment, or administration.
+4. AI use and developer control
+AI may assist with planning, code generation, test drafting, debugging, documentation, and review. AI output is not an authority and must not be accepted without inspection.
+
+The developer must:
+- provide a clear task brief and acceptance criteria;
+- supply the relevant project context and rules before implementation;
+- inspect generated diffs and understand material changes;
+- reject or modify recommendations that conflict with domain rules, security, data integrity, or scope;
+- run verification and inspect the actual output;
+- disclose material AI assistance in the project/capstone submission.
+For material suggestions that are declined or changed, record:
+1. the suggestion or proposed change;
+2. whether it was rejected or modified;
+3. the reason and risk avoided;
+4. the alternative selected.
+Use docs/REJECT_LOG.md for this record. Do not invent rejected suggestions after the fact; record real decisions as they occur.
+5. Pull-request review norms
+Every pull request should include:
+- Purpose: the user problem and intended outcome.
+- Scope: what changed and what was deliberately left unchanged.
+- Specification: acceptance criteria or a link to the relevant spec.
+- Implementation summary: affected pages, routes, collections, actions, and dependencies.
+- Tests: tests added or updated, including relevant edge cases.
+- Verification: exact commands or manual checks performed and their actual outcomes.
+- Risk notes: security, privacy, access-control, data-integrity, API compatibility, migration, and deployment implications.
+- AI-use declaration: a concise, honest account of where AI materially assisted.
+- Known limitations: failures, skipped checks, assumptions, or work not completed.
+Reviewers should evaluate:
+1. Does the change meet the acceptance criteria?
+2. Are server-side validation and authorization correct?
+3. Are ticket capacity, duplicate prevention, FIFO ordering, and transaction boundaries preserved?
+4. Can a failure leave partial records or misleading notifications?
+5. Are secrets and private student records protected?
+6. Are APIs and dependencies used according to the versions installed in this repository?
+7. Do the tests meaningfully cover success, failure, and edge cases?
+8. Is the diff small enough to understand and maintain?
+Do not approve solely because the code compiles, the UI looks correct, or an AI review says the change is safe.
+6. Verification evidence requirements
+For every capstone feature or material change, save evidence of what was actually checked. Suitable evidence includes:
+- test output, including the command and pass/fail result;
+- build or type-check output;
+- route/preview checks for affected user flows;
+- screenshots of relevant behaviour where useful;
+- API request/response examples with private values removed;
+- a PR/diff link and commit reference;
+- notes on failures, limitations, and checks that could not run.
+Never report a test, build, security check, deployment, or manual verification as passed unless it was actually performed and observed. If the current environment prevents a check, state the limitation and identify the next verification step.
+7. Capstone artefacts to maintain
+Keep the following team-ready artefacts in the repository:
+Artefact	Suggested path	Purpose
+Project overview	README.md	Explain the application, architecture, setup, and contribution expectations.
+Agent/context rules	AGENTS.md	Give AI agents the domain context, constraints, and workflow.
+One-page specification	docs/CAPSTONE_SPEC.md	Define the selected feature and testable acceptance criteria.
+Rejected suggestions	docs/REJECT_LOG.md	Record real AI suggestions rejected or changed and why.
+AI-use declaration	docs/AI_USE.md	Disclose how AI was used and what the developer reviewed.
+PR review norms	docs/PR_REVIEW.md	Record the review checklist applied to the change.
+Verification evidence	docs/VERIFICATION.md	Record test/build/preview results and limitations.
+Reflection	docs/REFLECTION.md	Provide the required 400–600-word reflection.
+
 # figma-make-app
 
 React + Next.js + Payload + Tailwind CSS project running inside Figma Make.
