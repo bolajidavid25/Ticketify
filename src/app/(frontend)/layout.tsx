@@ -13,7 +13,7 @@ const title = makeSiteSettings.title ?? defaultTitle
 const description =
   makeSiteSettings.description ??
   "Fair, transparent campus event tickets with real-time availability and automatic waitlists."
-const favicon = "/images/app-icon.png"
+const favicon = "/images/app-icon.png?v=2"
 const socialImage = makeSiteSettings.openGraph?.image
 const googleAnalyticsId = sanitizeHtmlAttribute(
   makeSiteSettings.analytics?.googleAnalyticsId,
