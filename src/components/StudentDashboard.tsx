@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useMemo, useState, useTransition } from 'react'
 import { joinWaitlistAction } from '@/app/(frontend)/ticket-actions'
+import { TicketQrCode } from '@/components/TicketQrCode'
 import { getCategoryImage } from '@/lib/event-media'
 
 export type DashboardEvent = {
@@ -26,6 +27,7 @@ export type DashboardEvent = {
 }
 
 export type TicketHistoryItem = {
+  code: string
   dateLabel: string
   eventSlug: string
   eventTitle: string
@@ -297,12 +299,16 @@ function HistorySection({ history }: { history: TicketHistoryItem[] }) {
       <div className="mt-4 grid gap-3">
         {history.length ? history.map((item) => (
           <Link className="flex items-center gap-4 rounded-2xl border border-[#dce4de] bg-white p-4" href={`/events/${item.eventSlug}`} key={item.id}>
-            <div className="grid size-12 shrink-0 place-items-center rounded-xl bg-[#edf3ed] text-[#377052]">
-              <TicketIcon className="size-5" />
-            </div>
+            {item.status === 'active' ? (
+              <TicketQrCode className="shrink-0" code={item.code} size={52} />
+            ) : (
+              <div className="grid size-12 shrink-0 place-items-center rounded-xl bg-[#edf3ed] text-[#377052]">
+                <TicketIcon className="size-5" />
+              </div>
+            )}
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-extrabold">{item.eventTitle}</p>
-              <p className="mt-1 text-xs text-[#79847e]">{item.dateLabel}</p>
+              <p className="mt-1 text-xs text-[#79847e]">{item.dateLabel} · <span className="font-mono font-bold text-[#10271e]">{item.code}</span></p>
             </div>
             <span className={`rounded-full px-2.5 py-1 text-[9px] font-black uppercase ${item.status === 'active' ? 'bg-[#e4f6e8] text-[#17683e]' : 'bg-[#f1f1ef] text-[#747b76]'}`}>
               {item.status}

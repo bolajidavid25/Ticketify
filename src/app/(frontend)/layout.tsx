@@ -13,7 +13,7 @@ const title = makeSiteSettings.title ?? defaultTitle
 const description =
   makeSiteSettings.description ??
   "Fair, transparent campus event tickets with real-time availability and automatic waitlists."
-const favicon = makeSiteSettings.icons?.icon ?? "/favicon.svg"
+const favicon = "/images/app-icon.png"
 const socialImage = makeSiteSettings.openGraph?.image
 const googleAnalyticsId = sanitizeHtmlAttribute(
   makeSiteSettings.analytics?.googleAnalyticsId,
@@ -29,7 +29,11 @@ export const metadata: Metadata = {
     makeSiteSettings.robots?.index === false
       ? { follow: false, index: false }
       : undefined,
-  icons: favicon ? { icon: favicon } : undefined,
+  icons: {
+    icon: favicon,
+    shortcut: favicon,
+    apple: favicon,
+  },
   openGraph: {
     title,
     description,

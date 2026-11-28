@@ -8,6 +8,7 @@ import {
   cancelTicketAction,
   joinWaitlistAction,
 } from '@/app/(frontend)/ticket-actions'
+import { TicketQrCode } from '@/components/TicketQrCode'
 
 export function TicketCheckout({
   capacity,
@@ -162,9 +163,14 @@ export function TicketCheckout({
           </>
         ) : existingTicket ? (
           <div className="rounded-2xl border border-[#c8ff66]/40 bg-white/8 p-4">
-            <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[#c8ff66]">Ticket confirmed · 1 per person</p>
-            <p className="mt-1 text-xl font-black tracking-wider">{existingTicket.code}</p>
-            <p className="mt-1 text-xs text-white/60">You hold your 1 allowed ticket for this event.</p>
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[#c8ff66]">Ticket confirmed · 1 per person</p>
+                <p className="mt-1 text-xl font-black tracking-wider">{existingTicket.code}</p>
+                <p className="mt-1 text-xs text-white/60">Show this QR code at the venue entrance.</p>
+              </div>
+              <TicketQrCode className="shrink-0" code={existingTicket.code} size={82} />
+            </div>
             <button
               className="mt-4 w-full rounded-full border border-white/25 px-5 py-3 text-xs font-extrabold text-white transition hover:bg-white/10 disabled:opacity-60"
               disabled={pending}

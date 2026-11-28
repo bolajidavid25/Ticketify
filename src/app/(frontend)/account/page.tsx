@@ -5,6 +5,7 @@ import { redirect } from 'next/navigation'
 import { logoutStudent } from '@/app/(frontend)/auth-actions'
 import { StudentIdForm } from '@/components/StudentIdForm'
 import { StudentNotificationsFeed } from '@/components/StudentNotificationsFeed'
+import { TicketQrCode } from '@/components/TicketQrCode'
 import { studentAuth } from '@/lib/app-auth'
 import { getPayloadClient } from '@/lib/payload'
 
@@ -176,6 +177,7 @@ export default async function AccountPage() {
                         </p>
                       </div>
                       <div className="flex items-center gap-3">
+                        <TicketQrCode code={ticket.code} size={64} />
                         <span className="rounded-xl bg-[#0b2a1d] px-3 py-2 font-mono text-xs font-black tracking-wider text-[#c8ff66]">
                           {ticket.code}
                         </span>

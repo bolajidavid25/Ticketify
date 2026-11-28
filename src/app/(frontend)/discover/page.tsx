@@ -100,6 +100,7 @@ export default async function DiscoverPage() {
     if (!event) return []
 
     return [{
+      code: ticket.code,
       dateLabel: new Intl.DateTimeFormat('en', {
         day: 'numeric',
         month: 'short',
